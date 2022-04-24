@@ -64,38 +64,46 @@ public class ItemGroupCommand {
     }
 
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher) {
-        dispatcher.register(literal("citemgroup")
-            .then(literal("modify")
-                .then(argument("group", string())
-                    .suggests((ctx, builder) -> suggestMatching(groups.keySet(), builder))
+        if(!isQuilt) {
+            dispatcher.register(literal("citemgroup")
+                    .then(literal("modify")
+                            .then(argument("group", string())
+                                    .suggests((ctx, builder) -> suggestMatching(groups.keySet(), builder))
+                                    .then(literal("add")
+                                            .then(argument("itemstack", itemStack())
+                                                    .then(argument("count", integer(1))
+                                                            .executes(ctx -> addStack(ctx.getSource(), getString(ctx, "group"), getCItemStackArgument(ctx, "itemstack").createStack(getInteger(ctx, "count"), false))))
+                                                    .executes(ctx -> addStack(ctx.getSource(), getString(ctx, "group"), getCItemStackArgument(ctx, "itemstack").createStack(1, false)))))
+                                    .then(literal("remove")
+                                            .then(argument("index", integer(0))
+                                                    .executes(ctx -> removeStack(ctx.getSource(), getString(ctx, "group"), getInteger(ctx, "index")))))
+                                    .then(literal("set")
+                                            .then(argument("index", integer(0))
+                                                    .then(argument("itemstack", itemStack())
+                                                            .then(argument("count", integer(1))
+                                                                    .executes(ctx -> setStack(ctx.getSource(), getString(ctx, "group"), getInteger(ctx, "index"), getCItemStackArgument(ctx, "itemstack").createStack(getInteger(ctx, "count"), false))))
+                                                            .executes(ctx -> setStack(ctx.getSource(), getString(ctx, "group"), getInteger(ctx, "index"), getCItemStackArgument(ctx, "itemstack").createStack(1, false))))))
+                                    .then(literal("icon")
+                                            .then(argument("icon", itemStack())
+                                                    .executes(ctx -> changeIcon(ctx.getSource(), getString(ctx, "group"), getCItemStackArgument(ctx, "icon").createStack(1, false)))))
+                                    .then(literal("rename")
+                                            .then(argument("new", string())
+                                                    .executes(ctx -> renameGroup(ctx.getSource(), getString(ctx, "group"), getString(ctx, "new")))))))
                     .then(literal("add")
-                        .then(argument("itemstack", itemStack())
-                            .then(argument("count", integer(1))
-                                .executes(ctx -> addStack(ctx.getSource(), getString(ctx, "group"), getCItemStackArgument(ctx, "itemstack").createStack(getInteger(ctx, "count"), false))))
-                            .executes(ctx -> addStack(ctx.getSource(), getString(ctx, "group"), getCItemStackArgument(ctx, "itemstack").createStack(1, false)))))
+                            .then(argument("group", string())
+                                    .then(argument("icon", itemStack())
+                                            .executes(ctx -> addGroup(ctx.getSource(), getString(ctx, "group"), getCItemStackArgument(ctx, "icon").createStack(1, false))))))
                     .then(literal("remove")
-                        .then(argument("index", integer(0))
-                            .executes(ctx -> removeStack(ctx.getSource(), getString(ctx, "group"), getInteger(ctx, "index")))))
-                    .then(literal("set")
-                        .then(argument("index", integer(0))
-                            .then(argument("itemstack", itemStack())
-                                .then(argument("count", integer(1))
-                                    .executes(ctx -> setStack(ctx.getSource(), getString(ctx, "group"), getInteger(ctx, "index"), getCItemStackArgument(ctx, "itemstack").createStack(getInteger(ctx, "count"), false))))
-                                .executes(ctx -> setStack(ctx.getSource(), getString(ctx, "group"), getInteger(ctx, "index"), getCItemStackArgument(ctx, "itemstack").createStack(1, false))))))
-                    .then(literal("icon")
-                        .then(argument("icon", itemStack())
-                            .executes(ctx -> changeIcon(ctx.getSource(), getString(ctx, "group"), getCItemStackArgument(ctx, "icon").createStack(1, false)))))
-                    .then(literal("rename")
-                        .then(argument("new", string())
-                            .executes(ctx -> renameGroup(ctx.getSource(), getString(ctx, "group"), getString(ctx, "new")))))))
-            .then(literal("add")
-                .then(argument("group", string())
-                    .then(argument("icon", itemStack())
-                         .executes(ctx -> addGroup(ctx.getSource(), getString(ctx, "group"), getCItemStackArgument(ctx, "icon").createStack(1, false))))))
-            .then(literal("remove")
-                .then(argument("group", string())
-                    .suggests((ctx, builder) -> suggestMatching(groups.keySet(), builder))
-                    .executes(ctx -> removeGroup(ctx.getSource(), getString(ctx, "group"))))));
+                            .then(argument("group", string())
+                                    .suggests((ctx, builder) -> suggestMatching(groups.keySet(), builder))
+                                    .executes(ctx -> removeGroup(ctx.getSource(), getString(ctx, "group"))))));
+        } else {
+            dispatcher.register(literal("citemgroup")
+                            .executes(ctx -> {
+                                sendError(new TranslatableText("commands.citemgroup.quilt.unsupported"));
+                                return 0;
+                            }));
+        }
     }
 
     private static int addGroup(FabricClientCommandSource source, String name, ItemStack icon) throws CommandSyntaxException {
@@ -117,12 +125,17 @@ public class ItemGroupCommand {
         return 0;
     }
 
-    private static final Field FABRIC_CURRENT_PAGE_FIELD;
+    private static final boolean isQuilt = FabricLoader.getInstance().isModLoaded("quilted_fabric_api");
+    private static Field FABRIC_CURRENT_PAGE_FIELD;
     static {
         try {
-            //noinspection JavaReflectionMemberAccess
-            FABRIC_CURRENT_PAGE_FIELD = CreativeInventoryScreen.class.getDeclaredField("fabric_currentPage");
-            FABRIC_CURRENT_PAGE_FIELD.setAccessible(true);
+            if(!isQuilt) {
+                //noinspection JavaReflectionMemberAccess
+                FABRIC_CURRENT_PAGE_FIELD = CreativeInventoryScreen.class.getDeclaredField("fabric_currentPage");
+                FABRIC_CURRENT_PAGE_FIELD.setAccessible(true);
+            } else {
+                LOGGER.error("You are running Quilt and therefore won't be able to use the citemgroup command.");
+            }
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
@@ -143,7 +156,6 @@ public class ItemGroupCommand {
             throw new RuntimeException(e);
         }
         saveFile();
-        sendFeedback("commands.citemgroup.removeGroup.success", name);
         return 0;
     }
 
